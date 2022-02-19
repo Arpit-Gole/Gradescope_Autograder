@@ -1,0 +1,226 @@
+#!/usr/bin/python3.8
+"""
+Gradescope marker script.
+Author: Arpit Gole || arpit.gole@student.adelaide.edu.au
+
+This is a template Gradescope marking script is suitable for any assignment taking Input and making Output
+in the format of a file. File handling is far better than comparing strings from standard Input/Output.
+"""
+
+import json
+import os
+import sys
+from datetime import datetime, timedelta
+import math
+import filecmp
+
+# ------ EDIT THE VARIABLES BELOW ------------
+num_of_test_cases = 5
+
+points_per_test_case = [1, 2, 3, 4, 5]
+
+student_code_file_name1 = 'cc.py'
+student_code_file_name2 = 'cc2.py'
+student_output_file_name = 'op.txt'
+
+# Make it equal to `num_of_test_cases` if you have only 1 file to mark.
+no_of_test_cases_to_run_for_file1 = 3
+# ----- END EDIT ----------------------------
+
+
+# 1. Utility Functions
+
+def printf(msg, option_val=1):
+    """
+    Custom format of printing.
+    :param msg: String to be printed to standard O/P.
+    :param option_val: Print mode.
+    :return: Prints to standard O/P.
+    """
+    option = {1: '[INFO]', 2: '[DEBUG]', 3: '[ERROR]'}
+    print(f"{option[option_val]} {msg}")
+
+
+# 2. Global Variables
+
+# Fetching the submission metadata.
+# https://gradescope-autograders.readthedocs.io/en/latest/submission_metadata/
+with open('/autograder/submission_metadata.json') as md:
+    meta_data = json.load(md)
+
+total_points = meta_data['assignment']['total_points']
+# printf(f'Complete meta data:\n {meta_data}', 2)
+
+# Test cases
+test_case_names = ['Test case ' + str(i) for i in range(1, num_of_test_cases + 1)]
+
+# Creating Gradescope JSON structure
+result = {
+    'score': 0,
+    'visibility': 'visible',
+    'stdout_visibility': 'visible',  # Do you want student to see the execution of the marker script?
+    'tests': []
+}
+
+# Total marks scored by the student
+total_marks = 0
+# Minimum marks a student can get
+min_mark = 0
+# Maximum marks a student can get
+max_mark = float(total_points) if '.' in total_points else int(total_points)
+
+# create default Gradescope output file
+with open('results/results.json', 'w') as file:
+    json.dump(result, file)
+
+# 3. Few sanity checks for this script
+
+# Checking the version of the env in which marker script is running.
+# printf("The version of the python in which marker script is running is:\n{}".format(sys.version_info))
+
+# Check if the points allocated in this script equals the total points for this assignment.
+assert float(total_points) if '.' in total_points else int(total_points) == sum(points_per_test_case), \
+    f'Total marks for the assignment is {total_points} whereas this script can award only ' \
+    f'{sum(points_per_test_case)} marks.'
+
+assert num_of_test_cases == len(points_per_test_case), \
+    f"You wanted to have {num_of_test_cases} but you have initialised only {len(points_per_test_case)} " \
+    f"test cases points."
+
+assert len(test_case_names) == len(points_per_test_case), \
+    f"No. of test cases names doesn't meet the no. of test cases points."
+
+
+# 4. Starting the grading process
+
+# Start the marking process test case by test case.
+for tc_num in range(1, num_of_test_cases + 1):
+    print('-----------------------------------------------------------------')
+
+    # Complete path of the student output
+    student_output_file = '/autograder/' + student_output_file_name
+
+    # Removing any previous output file from previous executions.
+    try:
+        os.remove(student_output_file)
+    except OSError:
+        pass
+
+    # Path to the I/P file
+    input_file = f'/autograder/source/test_case_files/ip' + str(tc_num) + '.txt'
+
+    # Display the contents of the I/P file
+    printf(f"Contents of the {'ip' + str(tc_num) + '.txt'} are as follows:", 2)
+    input_content = ""
+    with open(input_file, 'r') as fp:
+        input_content += fp.read()
+        print(input_content)
+        fp.close()
+
+    # print(f"All files before execution {os.listdir()}", 2)
+
+    # Executing the code. Change this command to run student code differently.
+    if tc_num <= no_of_test_cases_to_run_for_file1:
+        printf(f"Running the {student_code_file_name1} student code file.")
+        os.system(f"python3 /autograder/submission/" + student_code_file_name1 + " " + input_file)
+    else:
+        printf(f"Running the {student_code_file_name2} student code file.")
+        os.system(f"python3 /autograder/submission/" + student_code_file_name2 + " " + input_file)
+
+    # print(f"All files after execution {os.listdir()}", 2)
+
+    score = 0  # There are no partial marks.
+    feedback = ""  # CHANGE IF YOU WANT CUSTOM MESSAGE/FORMAT BELOW
+    # Open the O/P file to give points
+    try:
+        # Path to the O/P file
+        original_output_file = f'/autograder/source/test_case_files/op' + str(tc_num) + '.txt'
+
+        # Display the contents of the O/P file
+        printf(f"Contents of the {'op' + str(tc_num) + '.txt'} are as follows:", 2)
+        original_output_content = ""
+        with open(original_output_file, 'r') as fp:
+            original_output_content += fp.read()
+            print(original_output_content)
+            fp.close()
+
+        printf(f"Contents of the student O/P are as follows:", 2)
+        student_output_content = ""
+        with open(student_output_file, 'r') as fp:
+            student_output_content += fp.read()
+            print(student_output_content)
+            fp.close()
+
+        # this is an exact comparison, you may want to ignore whitespace
+        # when comparing student code output to expected output
+        # if filecmp.cmp(original_output_file, student_output_file):
+        if open(original_output_file, 'r').read() == open(student_output_file, 'r').read():
+            score = points_per_test_case[tc_num - 1]
+            feedback = test_case_names[tc_num - 1] + " satisfied."
+        else:
+            feedback = "Supplied Input:\n" + input_content + '\nExpected Output:\n' + original_output_content \
+                       + '\nYour Output:\n' + student_output_content + "\nOverall result for this test case: Failed."
+
+    except FileNotFoundError as fe:
+        # Do we need to provide a hint to add the file, or not?
+        printf('FileNotFoundError: Output file is not generated by your code.', 3)
+
+        feedback = f"FileNotFoundError: Output file is not generated by your code." \
+                   f"\nOverall result for this test case: Failed."
+
+    except Exception as e:
+        print(f'Waooo!! Something happened during the O/P comparison.\nError was {e}', 3)
+
+    # Updating the marks scored by the student
+    total_marks = total_marks + score
+
+    # create test case for results
+    test = {
+        "score": score,
+        "max_score": points_per_test_case[tc_num - 1],
+        "name": test_case_names[tc_num - 1],
+        "output": feedback,
+        "visibility": "visible"
+    }
+
+    # Updating the JSON
+    result['tests'].insert(len(result['tests']), test)
+
+    print('-----------------------------------------------------------------')
+
+# 5. Adding late penalties
+# If the submission is late the maximum mark you can obtain will be reduced by 25% per day (or part thereof)
+# past the due date.
+
+due = datetime.fromisoformat(meta_data['assignment']['due_date'])
+submitted = datetime.fromisoformat(meta_data['created_at'])
+lateness = submitted - due  # Is it really late?
+if lateness > timedelta(0):
+    late_seconds = lateness.seconds + (lateness.days * 24 * 60 * 60)
+    late_minutes = math.ceil(late_seconds / 60.0)
+    late_hours = math.ceil(late_minutes / 60.0)
+    late_days = math.ceil(late_hours / 24)
+
+    # Calculating the marks to reduce.
+    max_reduced_marks = max_mark * (late_days * 0.25)
+    max_mark_after_reduction = max_mark - max_reduced_marks
+
+    print("\n\n*****************************\n")
+    printf(f"This submission is late.\nDue date was: {due}\nSubmission was made on: {submitted}\nReducing "
+           f"{max_reduced_marks} marks from the maximum obtainable marks {max_mark} as per the late submission "
+           f"policy.\nP.S. 0 is given if a student submit very late.", 1)
+
+    # Finally, the student gets following
+    total_marks = max(min(total_marks, max_mark_after_reduction), min_mark)
+
+
+# 6. Update the final marks
+result['score'] = total_marks
+
+# Write to Gradescope results file
+with open('results/results.json', 'w') as file:
+    json.dump(result, file)
+
+print("\n\n*****************************\n")
+printf(f"This marking is done on the basis of marking script.\n"
+       f"Developed By: Arpit Gole || arpit.gole@adelaide.edu.au")
